@@ -1,0 +1,259 @@
+"""
+SOTA Model 6: CatBoost Advanced with Feature Engineering
+- 피처 엔지니어링 + Target Encoding
+- Output: submission_model6_catboost_adv.csv, oof_model6_catboost_adv.csv
+"""
+
+import os
+import random
+import warnings
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import f1_score
+
+import catboost as cb
+from category_encoders import TargetEncoder
+
+warnings.filterwarnings('ignore')
+
+# ============================================================================
+# Configuration
+# ============================================================================
+class Config:
+    BASE_DIR = Path(__file__).parent.parent.parent.parent  # project root
+    DATA_DIR = BASE_DIR / "data"
+    OUTPUT_DIR = BASE_DIR / "outputs"
+
+    TRAIN_FILE = "train.csv"
+    TEST_FILE = "test.csv"
+
+    N_SPLITS = 5
+    SEED = 42
+
+    TARGET = "completed"
+    ID_COL = "ID"
+
+
+cfg = Config()
+
+def set_seed(seed: int = 42):
+    random.seed(seed)
+    np.random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+
+set_seed(cfg.SEED)
+
+
+def create_features(df):
+    """피처 엔지니어링"""
+    df = df.copy()
+
+    # 1. re_registration
+    df['is_re_registration'] = (df['re_registration'] == '예').astype(int)
+
+    # 2. job
+    df['is_student'] = (df['job'] == '대학생').astype(int)
+
+    # 3. major_type
+    df['is_multiple_major'] = df['major type'].str.contains('복수', na=False).astype(int)
+
+    # 4. class 수
+    df['num_classes'] = 0
+    for col in ['class1', 'class2', 'class3', 'class4']:
+        if col in df.columns:
+            df['num_classes'] += df[col].notna().astype(int)
+
+    # 5. 이전 기수
+    prev_cols = ['previous_class_3', 'previous_class_4', 'previous_class_5',
+                 'previous_class_6', 'previous_class_7', 'previous_class_8']
+    df['num_prev_classes'] = 0
+    for col in prev_cols:
+        if col in df.columns:
+            df['num_prev_classes'] += (~df[col].isin(['해당없음', '', np.nan]) & df[col].notna()).astype(int)
+
+    # 6. 오프라인 참여
+    if 'hope_for_group' in df.columns:
+        df['prefer_offline'] = df['hope_for_group'].str.contains('오프라인', na=False).astype(int)
+        df['prefer_online'] = df['hope_for_group'].str.contains('온라인', na=False).astype(int)
+
+    # 7. 자격증
+    if 'certificate_acquisition' in df.columns:
+        df['has_certificate'] = (~df['certificate_acquisition'].isin(['없음', '', np.nan]) &
+                                  df['certificate_acquisition'].notna()).astype(int)
+
+    # 8. IT 전공
+    if 'major1_1' in df.columns:
+        df['is_it_major'] = df['major1_1'].str.contains('IT|컴퓨터', na=False).astype(int)
+
+    # 9. 기존 회원
+    if 'inflow_route' in df.columns:
+        df['is_existing_member'] = df['inflow_route'].str.contains('기존 학회원', na=False).astype(int)
+
+    # 10. 동기
+    if 'whyBDA' in df.columns:
+        df['why_curriculum'] = df['whyBDA'].str.contains('커리큘럼|관리', na=False).astype(int)
+        df['why_alone'] = df['whyBDA'].str.contains('혼자', na=False).astype(int)
+        df['why_satisfied'] = df['whyBDA'].str.contains('만족', na=False).astype(int)
+
+    # 11. 목표
+    if 'what_to_gain' in df.columns:
+        df['gain_project'] = df['what_to_gain'].str.contains('프로젝트', na=False).astype(int)
+        df['gain_analysis'] = df['what_to_gain'].str.contains('분석', na=False).astype(int)
+        df['gain_contest'] = df['what_to_gain'].str.contains('공모전', na=False).astype(int)
+
+    return df
+
+
+def preprocess_data(train_df, test_df):
+    """전처리"""
+    train_ids = train_df[cfg.ID_COL].values
+    test_ids = test_df[cfg.ID_COL].values
+    y = train_df[cfg.TARGET].values
+
+    train_df = create_features(train_df)
+    test_df = create_features(test_df)
+
+    feature_cols = [c for c in train_df.columns if c not in [cfg.ID_COL, cfg.TARGET]]
+
+    X_train = train_df[feature_cols].copy()
+    X_test = test_df[feature_cols].copy()
+
+    cat_cols = []
+    for col in feature_cols:
+        if X_train[col].dtype == 'object' or X_train[col].nunique() < 20:
+            cat_cols.append(col)
+
+    for col in cat_cols:
+        X_train[col] = X_train[col].fillna('missing').astype(str)
+        X_test[col] = X_test[col].fillna('missing').astype(str)
+
+    num_cols = [c for c in feature_cols if c not in cat_cols]
+    for col in num_cols:
+        median_val = X_train[col].median()
+        X_train[col] = X_train[col].fillna(median_val)
+        X_test[col] = X_test[col].fillna(median_val)
+
+    return X_train, X_test, y, train_ids, test_ids, cat_cols
+
+
+def search_best_threshold(y_true, y_prob, pos_cap=0.70, step=0.005):
+    y_true = np.asarray(y_true).astype(int)
+    y_prob = np.asarray(y_prob).astype(float)
+
+    best_thr, best_f1, best_pos = 0.5, -1.0, None
+
+    for thr in np.arange(0.0, 1.0 + 1e-12, step):
+        y_pred = (y_prob >= thr).astype(int)
+        pos_rate = float(y_pred.mean())
+        if pos_rate > pos_cap:
+            continue
+        f1 = f1_score(y_true, y_pred, zero_division=0)
+        if f1 > best_f1:
+            best_f1, best_thr, best_pos = f1, float(thr), pos_rate
+
+    if best_f1 < 0:
+        best_thr = 0.5
+
+    return best_thr, best_f1, best_pos
+
+
+def main():
+    print("="*60)
+    print("SOTA Model 6: CatBoost Advanced with Feature Engineering")
+    print("="*60)
+
+    train_df = pd.read_csv(cfg.DATA_DIR / cfg.TRAIN_FILE, encoding='utf-8-sig')
+    test_df = pd.read_csv(cfg.DATA_DIR / cfg.TEST_FILE, encoding='utf-8-sig')
+
+    print(f"\nTrain: {len(train_df)} rows, Test: {len(test_df)} rows")
+
+    X_train, X_test, y, train_ids, test_ids, cat_cols = preprocess_data(train_df, test_df)
+
+    print(f"Features: {len(X_train.columns)}")
+
+    neg_count = (y == 0).sum()
+    pos_count = (y == 1).sum()
+    scale_pos = neg_count / pos_count
+
+    cat_indices = [X_train.columns.get_loc(c) for c in cat_cols if c in X_train.columns]
+
+    skf = StratifiedKFold(n_splits=cfg.N_SPLITS, shuffle=True, random_state=cfg.SEED)
+
+    oof_prob = np.zeros(len(X_train))
+    test_probs = []
+    fold_scores = []
+
+    for fold, (tr_idx, va_idx) in enumerate(skf.split(X_train, y), 1):
+        print(f"\n--- Fold {fold} ---")
+
+        X_tr, X_va = X_train.iloc[tr_idx].copy(), X_train.iloc[va_idx].copy()
+        y_tr, y_va = y[tr_idx], y[va_idx]
+        X_te = X_test.copy()
+
+        # Target Encoding (top 10 cat cols)
+        te = TargetEncoder(cols=cat_cols[:10], smoothing=0.3)
+        X_tr_te = te.fit_transform(X_tr, y_tr)
+        X_va_te = te.transform(X_va)
+        X_te_te = te.transform(X_te)
+
+        for col in cat_cols[:10]:
+            te_col = f'{col}_te'
+            X_tr[te_col] = X_tr_te[col]
+            X_va[te_col] = X_va_te[col]
+            X_te[te_col] = X_te_te[col]
+
+        model = cb.CatBoostClassifier(
+            iterations=1000,
+            learning_rate=0.03,
+            depth=5,
+            l2_leaf_reg=5,
+            random_seed=cfg.SEED + fold,
+            scale_pos_weight=scale_pos,
+            eval_metric='F1',
+            cat_features=cat_indices,
+            verbose=100,
+            early_stopping_rounds=100,
+            task_type='CPU'
+        )
+
+        model.fit(X_tr, y_tr, eval_set=(X_va, y_va), use_best_model=True)
+
+        va_prob = model.predict_proba(X_va)[:, 1]
+        oof_prob[va_idx] = va_prob
+
+        thr, f1, _ = search_best_threshold(y_va, va_prob)
+        fold_scores.append(f1)
+        print(f"Fold {fold} - F1: {f1:.4f}, Threshold: {thr:.3f}")
+
+        test_prob = model.predict_proba(X_te)[:, 1]
+        test_probs.append(test_prob)
+
+    test_prob_mean = np.mean(test_probs, axis=0)
+
+    print(f"\nCatBoost Advanced Mean CV F1: {np.mean(fold_scores):.4f}")
+
+    global_thr, global_f1, _ = search_best_threshold(y, oof_prob, pos_cap=0.70)
+    test_pred = (test_prob_mean >= global_thr).astype(int)
+
+    # Save OOF
+    oof_df = pd.DataFrame({"ID": train_ids, "prob": oof_prob, "label": y})
+    oof_df.to_csv(cfg.OUTPUT_DIR / "oof_model6_catboost_adv.csv", index=False)
+
+    # Save submission
+    submission = pd.DataFrame({cfg.ID_COL: test_ids, cfg.TARGET: test_pred})
+    submission.to_csv(cfg.OUTPUT_DIR / "submission_model6_catboost_adv.csv", index=False)
+
+    # Save test probabilities
+    prob_df = pd.DataFrame({"ID": test_ids, "prob": test_prob_mean})
+    prob_df.to_csv(cfg.OUTPUT_DIR / "prob_model6_catboost_adv.csv", index=False)
+
+    print(f"\nSaved: submission_model6_catboost_adv.csv")
+    print(f"Global threshold: {global_thr:.4f}, F1: {global_f1:.4f}")
+
+
+if __name__ == "__main__":
+    main()
