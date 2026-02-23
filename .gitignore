@@ -1,5 +1,5 @@
-# Data files
-data/*.csv
+# Generated data files (keep original)
+data/*_generated.csv
 
 # Model outputs (except .gitkeep)
 outputs/*.csv
