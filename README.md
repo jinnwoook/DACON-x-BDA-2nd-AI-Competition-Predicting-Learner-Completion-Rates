@@ -134,15 +134,29 @@ final_prediction = 1 if vote_sum >= 7 else 0
 
 ```
 final_submit/
-├── main.ipynb              # Main ensemble notebook
-├── generate_diagrams.py    # Architecture diagram generator
+├── main.ipynb                      # 최종 앙상블 노트북 (메인 실행 파일)
+├── generate_diagrams.py            # 아키텍처 다이어그램 생성
 ├── README.md
 ├── requirements.txt
-├── assets/                 # Generated diagrams
+├── assets/                         # 생성된 다이어그램
 │   ├── pipeline_architecture.png
 │   ├── bert_architecture.png
 │   └── ensemble_voting.png
-├── models/                 # 10 pre-trained model predictions
+├── src/                            # 소스 코드
+│   ├── preprocessing/              # 데이터 전처리
+│   │   └── create_bert_data.py     # train.csv → bert_train_data.csv 변환
+│   ├── models/                     # 모델 학습 코드
+│   │   ├── text/                   # 텍스트 모델
+│   │   │   ├── model1_bert_data.py
+│   │   │   ├── model2_koelectra_detailed.py
+│   │   │   └── model3_klue_sentiment.py
+│   │   └── tabular/                # 정형 모델
+│   │       ├── model5_xgboost_advanced.py
+│   │       └── model6_catboost_advanced.py
+│   └── ensemble/                   # 앙상블 코드
+│       ├── ensemble_5models.py
+│       └── ensemble_enhanced.py
+├── models/                         # 10개 앙상블 예측 파일
 │   ├── submission_meta_vote_both.csv
 │   ├── submission_enhanced_3agree.csv
 │   ├── submission_simcse_bert_4agree.csv
@@ -153,9 +167,9 @@ final_submit/
 │   ├── submission_5models_4agree.csv
 │   ├── submission_bert_data.csv
 │   └── submission_5models_3agree.csv
-├── outputs/                # Final submission
+├── outputs/                        # 최종 제출 파일
 │   └── submission_10files_7agree.csv
-└── data/                   # Dataset (not included)
+└── data/                           # 데이터셋 (상대 경로 사용)
     ├── train.csv
     └── test.csv
 ```
@@ -223,13 +237,47 @@ print(f'Positives: {final_pred.sum()} ({final_pred.mean()*100:.2f}%)')
 
 ---
 
+## Development Environment
+
+| Component | Version |
+|-----------|---------|
+| **OS** | Linux (Ubuntu 20.04+) |
+| **Python** | 3.8+ (tested on 3.12.2) |
+| **PyTorch** | 2.0+ (tested on 2.9.1+cu128) |
+| **Transformers** | 4.30+ (tested on 4.57.6) |
+| **CUDA** | 12.8 (optional, for GPU) |
+| **NumPy** | 1.21+ (tested on 1.26.4) |
+| **Pandas** | 1.3+ (tested on 3.0.0) |
+| **Scikit-learn** | 1.0+ (tested on 1.8.0) |
+
+---
+
+## Data Preprocessing
+
+### train.csv → bert_train_data.csv 변환
+
+정형 데이터를 BERT 학습용 텍스트로 변환하는 스크립트:
+
+```bash
+python src/preprocessing/create_bert_data.py
+```
+
+변환 예시:
+```
+Input (train.csv):  job=대학생, whyBDA=혼자 공부하기 어려워서, ...
+Output (bert_train_data.csv): "지원 동기: 혼자 공부하기 어려워서. 직업은 대학생입니다. ..."
+```
+
+---
+
 ## Technical Stack
 
 - **Deep Learning**: PyTorch 2.0+
 - **NLP**: Hugging Face Transformers
-- **Pre-trained Model**: klue/bert-base
+- **Pre-trained Model**: klue/bert-base, monologg/koelectra-base-finetuned-nsmc
 - **Ensemble**: Hard voting with threshold
 - **Data Processing**: Pandas, NumPy
+- **Encoding**: UTF-8
 
 ---
 
