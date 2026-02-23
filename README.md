@@ -7,7 +7,7 @@
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
 ![Transformers](https://img.shields.io/badge/Transformers-4.30+-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
 
-**최종 F1 Score: 0.4508**
+**Public F1 Score: 0.4508 | Private F1 Score: 0.42168**
 
 </div>
 
@@ -292,7 +292,8 @@ print(f'Positives: {final_pred.sum()} ({final_pred.mean()*100:.2f}%)')
 
 | 지표 | 값 |
 |-----|---|
-| **F1 Score** | **0.4508** |
+| **Public F1 Score** | **0.4508** |
+| **Private F1 Score** | **0.42168** |
 | 총 샘플 수 | 814 |
 | 예측 Positive | 479 (58.85%) |
 | 앙상블 모델 수 | 10 |
