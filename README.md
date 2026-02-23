@@ -1,5 +1,5 @@
-# DACON x BDA 2nd AI Competition
-## Predicting Learner Course Completion Rates
+# DACON x BDA 2차 AI 경진대회
+## 학습자 과정 이수율 예측
 
 <div align="center">
 
@@ -7,130 +7,173 @@
 ![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
 ![Transformers](https://img.shields.io/badge/Transformers-4.30+-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
 
-**Final F1 Score: 0.4508**
+**최종 F1 Score: 0.4508**
 
 </div>
 
 ---
 
-## Overview
+## 프로젝트 개요
 
-This repository contains the final submission for the DACON x BDA 2nd AI Competition. The goal is to predict whether a learner will complete an online course based on their learning behavior data and course metadata.
+DACON x BDA 2차 AI 경진대회 최종 제출 코드입니다. 학습자의 학습 행동 데이터와 메타데이터를 기반으로 온라인 과정 이수 여부를 예측합니다.
 
-Our approach leverages **BERT-based text classification** combined with **ensemble learning** to achieve robust predictions through multi-model consensus voting.
+**BERT 기반 텍스트 분류**와 **앙상블 학습**을 결합하여 다중 모델 합의 투표 방식으로 강건한 예측을 수행합니다.
 
 ---
 
-## Pipeline Architecture
+## 파이프라인 아키텍처
 
 <div align="center">
-<img src="assets/pipeline_architecture.png" alt="Pipeline Architecture" width="900"/>
+<img src="assets/pipeline_architecture.png" alt="파이프라인 아키텍처" width="900"/>
 </div>
 
 ---
 
-## Data Analysis & Preprocessing
+## 데이터 분석 및 전처리
 
-### Dataset Overview
+### 데이터셋 개요
 
-| Dataset | Samples | Features | Target Variable |
-|---------|---------|----------|-----------------|
-| Train | 3,256 | Text + Metadata | `completed` (0/1) |
-| Test | 814 | Text + Metadata | - |
+| 데이터셋 | 샘플 수 | 특성 | 타겟 변수 |
+|---------|--------|------|----------|
+| Train | 748 | 텍스트 + 메타데이터 | `completed` (0/1) |
+| Test | 814 | 텍스트 + 메타데이터 | - |
 
-### Key Data Characteristics
+### 주요 데이터 특성
 
-1. **Text Features**
-   - Course descriptions and titles in Korean
-   - Learner feedback and engagement notes
-   - Variable text lengths requiring dynamic tokenization
+1. **텍스트 특성**
+   - 한국어로 작성된 지원 동기, 목표, 강의 규모 선택 이유
+   - 관심 기업, 희망 직무 등 주관식 응답
+   - 가변 길이 텍스트로 동적 토큰화 필요
 
-2. **Class Distribution**
-   - Binary classification task with moderate class imbalance
-   - Positive class (completed): ~55-60%
-   - Negative class (not completed): ~40-45%
+2. **클래스 분포**
+   - 이진 분류 (이수 완료 여부)
+   - 양성 클래스 (이수 완료): ~55-60%
+   - 음성 클래스 (미이수): ~40-45%
 
-3. **Preprocessing Pipeline**
+3. **전처리 파이프라인**
    ```
-   Raw Text → Cleaning → Tokenization → BERT Encoding → Model Input
+   정형 데이터 (train.csv) → 텍스트 변환 → BERT 토큰화 → 모델 입력
    ```
-   - **Text Cleaning**: Remove special characters, normalize whitespace
-   - **Tokenization**: BERT WordPiece tokenization (max 512 tokens)
-   - **Encoding**: [CLS] + tokens + [SEP] format for BERT input
+   - **텍스트 변환**: 정형 컬럼을 자연어 문장으로 변환
+   - **토큰화**: BERT WordPiece 토큰화 (최대 512 토큰)
+   - **인코딩**: [CLS] + 토큰 + [SEP] 형식
+
+### 텍스트 변환 예시
+
+```
+입력 (train.csv):
+  - whyBDA: "혼자 공부하기 어려워서"
+  - what_to_gain: "프로젝트 경험"
+  - job: "대학생"
+  - ...
+
+출력 (bert_train_data.csv):
+  "지원 동기: 혼자 공부하기 어려워서. 얻고자 하는 점: 프로젝트 경험.
+   직업은 대학생입니다. 전공 유형은 복수 전공이며, 전공 분야는 IT입니다..."
+```
 
 ---
 
-## Why BERT?
+## BERT 모델 선택 이유
 
 <div align="center">
-<img src="assets/bert_architecture.png" alt="BERT Architecture" width="800"/>
+<img src="assets/bert_architecture.png" alt="BERT 아키텍처" width="800"/>
 </div>
 
-### Rationale for BERT-based Approach
+### BERT 기반 접근법의 장점
 
-| Aspect | Traditional ML | BERT-based |
-|--------|---------------|------------|
-| **Text Understanding** | Bag-of-words, TF-IDF | Contextual embeddings |
-| **Korean Language** | Limited morphological analysis | Pre-trained on Korean corpus |
-| **Semantic Capture** | Surface-level patterns | Deep semantic relationships |
-| **Transfer Learning** | Not applicable | Leverages pre-trained knowledge |
+| 측면 | 전통적 ML | BERT 기반 |
+|-----|----------|----------|
+| **텍스트 이해** | Bag-of-words, TF-IDF | 문맥 임베딩 |
+| **한국어 처리** | 형태소 분석 한계 | 한국어 코퍼스 사전학습 |
+| **의미 파악** | 표면적 패턴 | 심층 의미 관계 |
+| **전이 학습** | 적용 불가 | 사전학습 지식 활용 |
 
-### Why `klue/bert-base`?
+### `klue/bert-base` 선택 이유
 
-1. **Korean Language Optimization**
-   - Pre-trained on 62GB of Korean text corpus
-   - Native understanding of Korean grammar and semantics
-   - Handles Korean-specific tokenization (subword units)
+1. **한국어 최적화**
+   - 62GB 한국어 텍스트 코퍼스로 사전학습
+   - 한국어 문법과 의미 네이티브 이해
+   - 한국어 특화 토큰화 (서브워드 단위)
 
-2. **Architecture Specifications**
-   - **Layers**: 12 Transformer encoder blocks
-   - **Hidden Size**: 768 dimensions
-   - **Attention Heads**: 12 multi-head attention
-   - **Parameters**: ~110M parameters
+2. **아키텍처 사양**
+   - **레이어**: 12개 Transformer 인코더 블록
+   - **히든 크기**: 768 차원
+   - **어텐션 헤드**: 12개 멀티헤드 어텐션
+   - **파라미터**: 약 1.1억개
 
-3. **Performance Benefits**
-   - Captures long-range dependencies in course descriptions
-   - Understands context of learner behavior descriptions
-   - Robust to vocabulary variations and typos
+3. **성능 이점**
+   - 지원 동기, 목표 등 긴 문맥의 의존성 파악
+   - 학습자 행동 설명의 맥락 이해
+   - 어휘 변형 및 오타에 강건
 
 ---
 
-## Ensemble Strategy
+## 피처 엔지니어링
+
+### 정형 데이터 피처 (25개 이상)
+
+| 카테고리 | 피처명 | 설명 |
+|---------|-------|------|
+| **기본 정보** | is_re_registration | 재등록 여부 |
+| | is_student, is_worker | 직업 (대학생/직장인) |
+| | is_multiple_major | 복수전공 여부 |
+| **수강 정보** | num_classes | 수강 클래스 수 |
+| | num_prev_classes | 이전 기수 참여 수 |
+| **역량** | has_certificate | 자격증 보유 여부 |
+| | is_it_major, is_data_major | IT/데이터 전공 여부 |
+| **동기 분석** | why_curriculum | 커리큘럼 언급 |
+| | why_alone | 혼자 공부 어려움 |
+| | why_satisfied | 이전 만족 언급 |
+| **목표 분석** | gain_project | 프로젝트 경험 희망 |
+| | gain_analysis | 분석 역량 희망 |
+| | gain_contest | 공모전 경험 희망 |
+| **시간/학기** | high_time_commitment | 높은 시간 투자 (3시간+) |
+| | is_senior, is_junior | 고학년/저학년 여부 |
+| **희망 직무** | want_data_analyst | 데이터 분석가 희망 |
+| | want_data_scientist | 데이터 사이언티스트 희망 |
+| **복합 피처** | commitment_score | 의지 점수 (재등록+기존회원+만족) |
+| | experience_score | 경험 점수 (이전참여+고학년+자격증) |
+| | it_relevance | IT 관련도 |
+
+---
+
+## 앙상블 전략
 
 <div align="center">
-<img src="assets/ensemble_voting.png" alt="Ensemble Voting" width="900"/>
+<img src="assets/ensemble_voting.png" alt="앙상블 투표" width="900"/>
 </div>
 
-### 10-Model Hard Voting Ensemble
+### 10개 모델 하드 보팅 앙상블
 
-We employ a **hard voting strategy** with a **7/10 agreement threshold** for final predictions.
+**7/10 동의 임계값**을 적용한 하드 보팅 전략을 사용합니다.
 
-| # | Model File | Description | Positives |
-|---|------------|-------------|-----------|
-| 1 | `meta_vote_both` | Meta-learner combining 5models AND enhanced | 470 |
-| 2 | `enhanced_3agree` | Enhanced BERT with 3-model agreement | 617 |
-| 3 | `simcse_bert_4agree` | SimCSE BERT with 4-model agreement | 491 |
-| 4 | `mega_ensemble_3agree` | Mega ensemble with 3-model agreement | 483 |
-| 5 | `top3_2agree` | Top 3 models with 2-model agreement | 483 |
-| 6 | `prob_avg_035` | Probability averaging (threshold 0.35) | 468 |
-| 7 | `10models_7agree` | 10-model ensemble with 7-agreement | 511 |
-| 8 | `5models_4agree` | 5-model ensemble with 4-agreement | 476 |
-| 9 | `bert_data` | Single BERT classifier | 676 |
-| 10 | `5models_3agree` | 5-model ensemble with 3-agreement | 617 |
+| # | 모델 파일 | 설명 | Positives |
+|---|----------|------|-----------|
+| 1 | `meta_vote_both` | 5models AND enhanced 메타 학습 | 470 |
+| 2 | `enhanced_3agree` | Enhanced BERT 3개 동의 | 617 |
+| 3 | `simcse_bert_4agree` | SimCSE BERT 4개 동의 | 491 |
+| 4 | `mega_ensemble_3agree` | 메가 앙상블 3개 동의 | 483 |
+| 5 | `top3_2agree` | Top 3 모델 2개 동의 | 483 |
+| 6 | `prob_avg_035` | 확률 평균 (임계값 0.35) | 468 |
+| 7 | `10models_7agree` | 10개 모델 7개 동의 | 511 |
+| 8 | `5models_4agree` | 5개 모델 4개 동의 | 476 |
+| 9 | `bert_data` | 단일 BERT 분류기 | 676 |
+| 10 | `5models_3agree` | 5개 모델 3개 동의 | 617 |
 
-### Voting Logic
+### 투표 로직
 
 ```python
-# Hard voting with 7/10 threshold
-vote_sum = sum(model_predictions)  # Sum of 10 binary predictions
+# 7/10 임계값 하드 보팅
+vote_sum = sum(model_predictions)  # 10개 이진 예측의 합
 final_prediction = 1 if vote_sum >= 7 else 0
 ```
 
-**Final Result**: 479 Positives (58.85%)
+**최종 결과**: 479개 Positive (58.85%)
 
 ---
 
-## Project Structure
+## 프로젝트 구조
 
 ```
 final_submit/
@@ -150,52 +193,72 @@ final_submit/
 │   │   │   ├── model1_bert_data.py
 │   │   │   ├── model2_koelectra_detailed.py
 │   │   │   └── model3_klue_sentiment.py
-│   │   └── tabular/                # 정형 모델
-│   │       ├── model5_xgboost_advanced.py
-│   │       └── model6_catboost_advanced.py
+│   │   └── tabular/                # 정형 모델 + 피처 엔지니어링
+│   │       ├── model5_xgboost_enhanced.py
+│   │       └── model6_catboost_enhanced.py
 │   └── ensemble/                   # 앙상블 코드
 │       ├── ensemble_5models.py
 │       └── ensemble_enhanced.py
 ├── models/                         # 10개 앙상블 예측 파일
-│   ├── submission_meta_vote_both.csv
-│   ├── submission_enhanced_3agree.csv
-│   ├── submission_simcse_bert_4agree.csv
-│   ├── submission_mega_ensemble_3agree.csv
-│   ├── submission_top3_2agree.csv
-│   ├── submission_prob_avg_035.csv
-│   ├── submission_10models_7agree.csv
-│   ├── submission_5models_4agree.csv
-│   ├── submission_bert_data.csv
-│   └── submission_5models_3agree.csv
+│   └── submission_*.csv
 ├── outputs/                        # 최종 제출 파일
 │   └── submission_10files_7agree.csv
-└── data/                           # 데이터셋 (상대 경로 사용)
-    ├── train.csv
-    └── test.csv
+└── data/                           # 데이터셋
+    ├── train.csv                   # 원본 정형 데이터 (학습)
+    ├── test.csv                    # 원본 정형 데이터 (추론)
+    ├── bert_train_data.csv         # BERT용 텍스트 (학습)
+    └── bert_test_data.csv          # BERT용 텍스트 (추론)
 ```
 
 ---
 
-## Quick Start
+## 개발 환경
 
-### Requirements
+| 구성 요소 | 버전 |
+|----------|------|
+| **OS** | Linux (Ubuntu 20.04+) |
+| **Python** | 3.8+ (테스트: 3.12.2) |
+| **PyTorch** | 2.0+ (테스트: 2.9.1+cu128) |
+| **Transformers** | 4.30+ (테스트: 4.57.6) |
+| **CUDA** | 12.8 (GPU 사용 시) |
+| **NumPy** | 1.21+ (테스트: 1.26.4) |
+| **Pandas** | 1.3+ (테스트: 3.0.0) |
+| **Scikit-learn** | 1.0+ (테스트: 1.8.0) |
+| **XGBoost** | 1.6+ |
+| **CatBoost** | 1.0+ |
+
+---
+
+## 실행 방법
+
+### 1. 환경 설정
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### Generate Final Submission
+### 2. 데이터 전처리 (선택사항)
+
+```bash
+# train.csv → bert_train_data.csv 변환
+python src/preprocessing/create_bert_data.py
+```
+
+### 3. 최종 앙상블 실행
 
 ```bash
 jupyter notebook main.ipynb
-# or run directly:
-python -c "
+```
+
+또는 Python 스크립트로 직접 실행:
+
+```python
 import numpy as np
 import pandas as pd
 from pathlib import Path
 
 MODELS_DIR = Path('models')
-files = [
+file_names = [
     'submission_meta_vote_both.csv',
     'submission_enhanced_3agree.csv',
     'submission_simcse_bert_4agree.csv',
@@ -209,88 +272,56 @@ files = [
 ]
 
 preds = {}
-for f in files:
+for f in file_names:
     df = pd.read_csv(MODELS_DIR / f)
     preds[f] = df['completed'].values
     test_ids = df['ID'].values
 
+# 7개 이상 동의 시 1
 vote_sum = sum(preds.values())
 final_pred = (vote_sum >= 7).astype(int)
 
 submission = pd.DataFrame({'ID': test_ids, 'completed': final_pred})
 submission.to_csv('outputs/submission_10files_7agree.csv', index=False)
 print(f'Positives: {final_pred.sum()} ({final_pred.mean()*100:.2f}%)')
-"
 ```
 
 ---
 
-## Results
+## 결과
 
-| Metric | Value |
-|--------|-------|
+| 지표 | 값 |
+|-----|---|
 | **F1 Score** | **0.4508** |
-| Total Samples | 814 |
-| Predicted Positives | 479 (58.85%) |
-| Ensemble Models | 10 |
-| Voting Threshold | 7/10 |
+| 총 샘플 수 | 814 |
+| 예측 Positive | 479 (58.85%) |
+| 앙상블 모델 수 | 10 |
+| 투표 임계값 | 7/10 |
 
 ---
 
-## Development Environment
+## 기술 스택
 
-| Component | Version |
-|-----------|---------|
-| **OS** | Linux (Ubuntu 20.04+) |
-| **Python** | 3.8+ (tested on 3.12.2) |
-| **PyTorch** | 2.0+ (tested on 2.9.1+cu128) |
-| **Transformers** | 4.30+ (tested on 4.57.6) |
-| **CUDA** | 12.8 (optional, for GPU) |
-| **NumPy** | 1.21+ (tested on 1.26.4) |
-| **Pandas** | 1.3+ (tested on 3.0.0) |
-| **Scikit-learn** | 1.0+ (tested on 1.8.0) |
+- **딥러닝**: PyTorch 2.0+
+- **자연어처리**: Hugging Face Transformers
+- **사전학습 모델**: klue/bert-base, monologg/koelectra-base-finetuned-nsmc
+- **정형 모델**: XGBoost, CatBoost
+- **앙상블**: 하드 보팅 (임계값 방식)
+- **데이터 처리**: Pandas, NumPy
+- **인코딩**: UTF-8
 
 ---
 
-## Data Preprocessing
+## 라이선스
 
-### train.csv → bert_train_data.csv 변환
-
-정형 데이터를 BERT 학습용 텍스트로 변환하는 스크립트:
-
-```bash
-python src/preprocessing/create_bert_data.py
-```
-
-변환 예시:
-```
-Input (train.csv):  job=대학생, whyBDA=혼자 공부하기 어려워서, ...
-Output (bert_train_data.csv): "지원 동기: 혼자 공부하기 어려워서. 직업은 대학생입니다. ..."
-```
-
----
-
-## Technical Stack
-
-- **Deep Learning**: PyTorch 2.0+
-- **NLP**: Hugging Face Transformers
-- **Pre-trained Model**: klue/bert-base, monologg/koelectra-base-finetuned-nsmc
-- **Ensemble**: Hard voting with threshold
-- **Data Processing**: Pandas, NumPy
-- **Encoding**: UTF-8
-
----
-
-## License
-
-This project is for educational and competition purposes.
+본 프로젝트는 교육 및 경진대회 목적으로 작성되었습니다.
 
 ---
 
 <div align="center">
 
-**DACON x BDA 2nd AI Competition**
+**DACON x BDA 2차 AI 경진대회**
 
-Made with PyTorch and Hugging Face Transformers
+PyTorch와 Hugging Face Transformers로 제작
 
 </div>
