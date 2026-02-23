@@ -1,141 +1,98 @@
-# DACON x BDA 2nd AI Competition - Predicting Learner Completion Rates
+# BDA Competition - Final Submission
 
-BDA 수료 예측 대회 SOTA 솔루션 (LB Score: 0.44)
+## submission_10files_7agree.csv (SOTA: 0.44)
 
-## Overview
+10개 앙상블 파일을 결합하여 7개 이상 동의 시 1 예측
 
-학습자의 수료 여부를 예측하는 AI 알고리즘 개발
-
-### Key Approach: Meta Vote Both
+## 폴더 구조
 
 ```
-meta_vote_both = 5models_4agree AND enhanced_3agree
-```
-
-- **5models_4agree**: 기존 5개 모델 중 4개 이상 동의
-- **enhanced_3agree**: Enhanced 5개 모델 중 3개 이상 동의
-- **meta_vote_both**: 위 두 조건 모두 만족해야 수료(1) 예측
-
----
-
-## Project Structure
-
-```
-.
+final_submit/
+├── main.ipynb              # 앙상블 실행 노트북
 ├── README.md
-├── run_all.sh                          # Full pipeline script
 ├── requirements.txt
-│
-├── src/
-│   ├── models/
-│   │   ├── text/                       # Text-based models
-│   │   │   ├── model1_bert_data.py     # KoELECTRA-NSMC (bert_train_data)
-│   │   │   ├── model2_koelectra_detailed.py  # KoELECTRA-NSMC (train_detailed)
-│   │   │   └── model3_klue_sentiment.py      # KLUE-BERT Sentiment
-│   │   │
-│   │   └── tabular/                    # Tabular models
-│   │       ├── model5_xgboost_advanced.py
-│   │       ├── model5_xgboost_enhanced.py
-│   │       ├── model6_catboost_advanced.py
-│   │       └── model6_catboost_enhanced.py
-│   │
-│   └── ensemble/                       # Ensemble scripts
-│       ├── ensemble_5models.py         # 5models_4agree
-│       ├── ensemble_enhanced.py        # enhanced_3agree
-│       └── create_meta_vote_both.py    # Final SOTA
-│
-├── data/                               # Place your data here
-│   ├── train.csv
-│   ├── test.csv
-│   ├── bert_train_data.csv
-│   ├── bert_test_data.csv
-│   ├── train_detailed.csv
-│   └── test_detailed.csv
-│
-└── outputs/                            # Model predictions
-    └── submission_meta_vote_both.csv   # Final submission
+├── models/                 # 10개 모델 예측 파일
+│   ├── submission_meta_vote_both.csv
+│   ├── submission_enhanced_3agree.csv
+│   ├── submission_simcse_bert_4agree.csv
+│   ├── submission_mega_ensemble_3agree.csv
+│   ├── submission_top3_2agree.csv
+│   ├── submission_prob_avg_035.csv
+│   ├── submission_10models_7agree.csv
+│   ├── submission_5models_4agree.csv
+│   ├── submission_bert_data.csv
+│   └── submission_5models_3agree.csv
+├── outputs/                # 최종 제출 파일
+│   └── submission_10files_7agree.csv
+└── data/                   # 원본 데이터
+    ├── train.csv
+    └── test.csv
 ```
 
----
+## 10개 파일 구성
 
-## Models
+| # | 파일명 | 설명 | Positives |
+|---|--------|------|-----------|
+| 1 | meta_vote_both | 5models_4agree AND enhanced_3agree | 470 |
+| 2 | enhanced_3agree | Enhanced 모델 3개 이상 동의 | 617 |
+| 3 | simcse_bert_4agree | SimCSE BERT 기반 | 491 |
+| 4 | mega_ensemble_3agree | 메가 앙상블 | 483 |
+| 5 | top3_2agree | Top 3 모델 2개 이상 동의 | 483 |
+| 6 | prob_avg_035 | 확률 평균 threshold 0.35 | 468 |
+| 7 | 10models_7agree | 10개 모델 7개 이상 동의 | 511 |
+| 8 | 5models_4agree | 5개 모델 4개 이상 동의 | 476 |
+| 9 | bert_data | BERT 단일 모델 | 676 |
+| 10 | 5models_3agree | 5개 모델 3개 이상 동의 | 617 |
 
-### Text Models (3)
-
-| Model | Script | Pre-trained | Data |
-|-------|--------|-------------|------|
-| Model 1 | `model1_bert_data.py` | `koelectra-base-finetuned-nsmc` | bert_train_data.csv |
-| Model 2 | `model2_koelectra_detailed.py` | `koelectra-base-finetuned-nsmc` | train_detailed.csv |
-| Model 3 | `model3_klue_sentiment.py` | `klue-bert-base-sentiment` | train_detailed.csv |
-
-### Tabular Models (4)
-
-| Model | Script | Algorithm | Features |
-|-------|--------|-----------|----------|
-| Model 5 | `model5_xgboost_advanced.py` | XGBoost | Basic FE |
-| Model 5 Enhanced | `model5_xgboost_enhanced.py` | XGBoost | Advanced FE |
-| Model 6 | `model6_catboost_advanced.py` | CatBoost | Basic FE + Target Encoding |
-| Model 6 Enhanced | `model6_catboost_enhanced.py` | CatBoost | Advanced FE + Target Encoding |
-
----
-
-## Quick Start
-
-### 1. Install Dependencies
+## 실행 방법
 
 ```bash
-pip install -r requirements.txt
+# Jupyter Notebook 실행
+jupyter notebook main.ipynb
 ```
 
-### 2. Prepare Data
+또는 Python 스크립트로 실행:
 
-Place your data files in the `data/` directory.
+```python
+import numpy as np
+import pandas as pd
+from pathlib import Path
 
-### 3. Run Pipeline
+# 10개 파일 로드
+MODELS_DIR = Path("models")
+file_names = [
+    'submission_meta_vote_both.csv',
+    'submission_enhanced_3agree.csv',
+    'submission_simcse_bert_4agree.csv',
+    'submission_mega_ensemble_3agree.csv',
+    'submission_top3_2agree.csv',
+    'submission_prob_avg_035.csv',
+    'submission_10models_7agree.csv',
+    'submission_5models_4agree.csv',
+    'submission_bert_data.csv',
+    'submission_5models_3agree.csv',
+]
 
-```bash
-chmod +x run_all.sh
-./run_all.sh
+preds = {}
+test_ids = None
+for f in file_names:
+    df = pd.read_csv(MODELS_DIR / f)
+    preds[f] = df['completed'].values
+    if test_ids is None:
+        test_ids = df['ID'].values
+
+# 7개 이상 동의 시 1
+vote_sum = sum(preds.values())
+final_pred = (vote_sum >= 7).astype(int)
+
+# 저장
+submission = pd.DataFrame({'ID': test_ids, 'completed': final_pred})
+submission.to_csv("outputs/submission_10files_7agree.csv", index=False)
+print(f"Positives: {final_pred.sum()}")  # 479
 ```
 
-Or run individual models:
+## 결과
 
-```bash
-# Text models
-python src/models/text/model1_bert_data.py
-python src/models/text/model2_koelectra_detailed.py
-python src/models/text/model3_klue_sentiment.py
-
-# Tabular models
-python src/models/tabular/model5_xgboost_advanced.py
-python src/models/tabular/model6_catboost_advanced.py
-python src/models/tabular/model5_xgboost_enhanced.py
-python src/models/tabular/model6_catboost_enhanced.py
-
-# Ensemble
-python src/ensemble/ensemble_5models.py
-python src/ensemble/ensemble_enhanced.py
-python src/ensemble/create_meta_vote_both.py
-```
-
----
-
-## Results
-
-| Submission | Description | Positive Rate |
-|------------|-------------|---------------|
-| `5models_4agree` | 5 models, 4+ agree | ~58% |
-| `enhanced_3agree` | Enhanced 5 models, 3+ agree | ~76% |
-| **`meta_vote_both`** | **Both conditions (SOTA)** | **~58%** |
-
----
-
-## Why Meta Vote Both Works
-
-1. **Double Validation**: Both original and enhanced models must agree
-2. **Minimizes False Positives**: Conservative prediction strategy
-3. **Diversity**: Different feature engineering approaches
-
-```
-5models_4agree (476) AND enhanced_3agree (617) = meta_vote_both (470)
-```
+- **Total samples**: 814
+- **Positives**: 479 (58.8%)
+- **Score**: 0.44 (F1-Score)
