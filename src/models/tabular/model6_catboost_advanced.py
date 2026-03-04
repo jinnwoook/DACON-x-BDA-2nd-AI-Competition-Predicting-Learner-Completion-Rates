@@ -124,7 +124,7 @@ def preprocess_data(train_df, test_df):
 
     cat_cols = []
     for col in feature_cols:
-        if X_train[col].dtype == 'object' or X_train[col].nunique() < 20:
+        if not pd.api.types.is_numeric_dtype(X_train[col]) or X_train[col].nunique() < 20:
             cat_cols.append(col)
 
     for col in cat_cols:

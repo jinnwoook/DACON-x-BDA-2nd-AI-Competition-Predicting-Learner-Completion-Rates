@@ -124,7 +124,7 @@ def preprocess_data(train_df, test_df):
 
     cat_cols = []
     for col in feature_cols:
-        if X_train[col].dtype == 'object':
+        if not pd.api.types.is_numeric_dtype(X_train[col]):
             cat_cols.append(col)
 
     # Label Encoding for XGBoost
