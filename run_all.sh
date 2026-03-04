@@ -69,6 +69,17 @@ python src/ensemble/create_meta_vote_both.py
 
 echo ""
 echo "============================================================================"
+echo "Model Training Complete!"
+echo "Individual model outputs saved in outputs/"
+echo "============================================================================"
+
+# Step 5: Final Ensemble (main.ipynb)
+echo ""
+echo "[Final] Running final ensemble via main.ipynb..."
+jupyter nbconvert --to notebook --execute main.ipynb --output main.ipynb 2>&1
+
+echo ""
+echo "============================================================================"
 echo "Pipeline Complete!"
-echo "Final submission: outputs/submission_meta_vote_both.csv"
+echo "Final submission: outputs/submission_10files_7agree.csv"
 echo "============================================================================"
